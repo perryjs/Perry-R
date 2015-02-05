@@ -1,0 +1,21 @@
+venn.plot <- draw.triple.venn(
+area1 = 63.1,
+area2 = 50.4,
+area3 = 72.1,
+n12 = 27.7,
+n23 = 35.2,
+n13 = 44.7,
+n123 = 22,
+fill = c("dark blue", "green", "orange"),
+alpha= 0.75,
+lty = "solid",
+cex = 2,
+cat.cex = 2,
+);
+grid.draw(venn.plot);
+grid.newpage();
+
+# Writing to file
+tiff(filename = "Batf3 v Aire v ATG Treg.tiff", compression = "lzw");
+grid.draw(venn.plot);
+dev.off();

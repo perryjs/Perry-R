@@ -1,0 +1,26 @@
+venn.plot <- draw.pairwise.venn(
+area1 = 41.2,
+area2 = 58.8,
+cross.area = 20.0,
+fill = c("yellow", "red"),
+alpha= 0.75,
+lty = "solid",
+cex = 2,
+cat.cex = 2,
+cat.pos = c(285, 105),
+cat.dist = 0.09,
+cat.just = list(c(-1, -1), c(1, 1)),
+ext.pos = 30,
+ext.dist = -0.05,
+ext.length = 0.85,
+ext.line.lwd = 2,
+ext.line.lty = "solid",
+rotation.degree = 180
+);
+grid.draw(venn.plot);
+grid.newpage();
+
+# Writing to file
+tiff(filename = "Batf3 v Aire NS.tiff", compression = "lzw");
+grid.draw(venn.plot);
+dev.off();
