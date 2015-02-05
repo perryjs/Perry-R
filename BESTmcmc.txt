@@ -1,0 +1,15 @@
+BESTmcmc (for comparison of two group means)
+Library(BEST)
+AireBESTmcmc <- read.delim("AireBESTmcmc.txt", header=TRUE)
+BESTmcmc <- BESTmcmc(AireBESTmcmc$V1, AireBESTmcmc$V2)
+BESTmcmc ###Displays the model info, must be copied to txt)
+summary(BESTmcmc) ###Displays summary of results, must be copied to txt, for more info use summary call below)
+plot(BESTmcmc) ###Plots difference of means etc, must be copied by bitmap to paint
+plot(BESTmcmc, “sd”) ###Plots difference of SDs
+plotAll(BESTmcmc, credMass=0.80, ROPEm=c(-0.00002,0.00002), ROPEeff=c(-0.2,0.2), compValm=0.5) ###Plots everything needed, must be done on big screen, can also use credMass=0.95. Note the ROPE values must match the mean values used, which in the case of frequencies are very low (10^-5)
+summary(BESTmcmc, credMass=0.8, ROPEm=c(-0.00002,0.00002), ROPEsd=c(-0.00002,0.00002), ROPEeff=c(-0.2,0.2))  ###Can also use credMass=0.95, must save in txt file. Note the ROPE values must match the mean values used, which in the case of frequencies are very low (10^-5)
+pairs(BESTmcmc) ###gives an XY matrix plot of mu 1 v sd 1, sd 2, and so on
+head(BESTmcmc$mu1) ###mu1, mu2, and so on, gives the values only for mu1, can be printed or saved into file form
+hdi(BESTmcmc, credMass = 0.80)   ###highest density interval 
+plotAreaInROPE(BESTmcmc, credMass = 0.8, compVal = 0, maxROPEradius = 3) ### how much area in the rope
+

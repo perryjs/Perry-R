@@ -1,0 +1,14 @@
+Random Forest
+Library(randomForest)
+Aire <- read.delim("Aire comparisons.txt") 
+> View(Aire)
+> set.seed(71)
+> ID <- as.factor(Aire$ID)
+Aire.rf <- randomForest (Aire[,3:1277],Aire$ID, ntree=100000, mtry = 500, do.trace = 500, replace=TRUE, proximity = TRUE, importance = TRUE)
+print(Aire.rf)
+MDSplot(Aire.rf, Aire$Condition, k=2, palette=NULL, pch=20)
+varImpPlot(Aire.rf)
+Aire.rf.i <- importance(Aire.rf)
+write.table(Aire.rf.i, "Aire Analyses Importance.txt", sep="\t")
+Aire.impvar <- rownames(Aire.rf.i)[order(Aire.rf.i[, 1], decreasing=TRUE)]
+write.table(Aire.impvar, "Aire Important Variables.txt")

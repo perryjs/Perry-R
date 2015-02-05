@@ -1,0 +1,8 @@
+MCMCpack (for MCMC logistic regression)
+library(MCMCpack)
+AireMCMCpack <- read.delim("AireBESTmcmc.txt", header=TRUE)
+library(plyr) ###for recoding variable)
+AireMCMCpack$V1 <- mapvalues(AireMCMCpack$V1, from = c("1", "2"), to = c("0", "1")) ###to recode into binary 0 and 1, the response variable must be 0 and 1 for MCMClogit to run
+Aire.posterior <- MCMClogit(V1~V2, data=AireMCMCpack)
+plot(Aire.posterior)
+summary(Aire.posterior)

@@ -1,0 +1,17 @@
+Bayes Factor
+Library(BayesFactor)
+AireBFstack <- read.delim("AireBFstack.txt", header=TRUE)
+ID <- as.factor(AireBFstack$ID)
+str(AireBFstack)
+AireBFstacktest <- ttestBF(x = AireBFstack$Data[AireBFstack$ID==1], y = AireBFstack$Data[AireBFstack$ID==2], paired=FALSE)
+print(AireBFstacktest)
+AireBFstackchains = posterior(AireBFstacktest, iterations = 1000)
+summary(AireBFstackchains)  ###cop to text
+bfInterval = ttestBF(x = AireBFstack$Data[AireBFstack$ID==1], nullInterval=c(-Inf,0))
+print(bfInterval)
+write.table(AireBFstacktest, "AireBFstacktest.txt", sep="\t")
+write.table(AireBFstackchains, "AireBFstackchains.txt", sep="\t") ###Copy and paste Summary into txt
+write.table(bfInterval, "Airebfinterval.txt", sep="\t")
+Save figures from posterior (aka chains) and interval tests
+plot(AireBFstackchains[,1:4]) (or eg 1:2, 1:3 etc, I plot 1:2 and 3:4)
+###Can also use bf = ttestBF(formula = Data ~ ID, data = AireBFstack) for main analysis###

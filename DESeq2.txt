@@ -1,0 +1,7 @@
+dds <- DESeqDataSetFromMatrix(countData = table, colData = colData, design = ~condition)
+ 
+ 
+The countData = table should be a table of only sequence counts. rownames = TCR
+colData should be a data frame of column names.  Can have multiple columns (i.e. location (thymus vs spleen),
+design = ~ columnname1
+(or columnname1 + name2) for multifactorial design.
