@@ -1,0 +1,38 @@
+library(dplyr)
+library(NMF)
+library(RColorBrewer)
+
+rownames(data) = make.names(data$symbol, unique = T)
+dataH = data %>% select(-symbol) %>% as.matrix()
+aheatmap(VolumeH, color = "-RdBu:100", scale = "col", breaks = 0, 
+         distfun = "manhattan", treeheight=c(0, 50), 
+         fontsize=12, cexCol=1.2, 
+         filename="Global heatmap.png", width=8, height=16)
+
+cor_t <- cor(t(dataH))
+distancet <- as.dist(cor_t)
+hclust_complete <- hclust(distancet, method = "complete")
+dendcomplete <- as.dendrogram(hclust_complete)
+heatmap(VolumeH, Rowv=NA, Colv=NA, scale="column")
+aheatmap(dataH, Colv=NA, Rowv=NA, color = "-RdBu:100", scale="row", treeheight=c(0, 50), fontsize=12, cexCol=1, filename="WT v KO all assoc heatmap.png", width=8, height=12)
+
+
+distancem <- dist(SLCorgH)
+hclust_completem <- hclust(distancem, method = "complete")
+dendcompletem <- as.dendrogram(hclust_completem)
+heatmap(SLCorgH, Rowv=NA, Colv=NA, scale="column", cexCol=.6)
+
+###if traansposing matrix
+t_glycolysis = setNames(data.frame(t(glycolysis[,-1])), glycolysis[,1])
+
+Inflammasome <- read.delim("Inflammasome.txt")
+rownames(Inflammasome) = make.names(Inflammasome$Gene.Name, unique = T)
+InflammasomeH = Inflammasome %>% select(-Gene.Name) %>% as.matrix()
+cor_t <- cor(t(InflammasomeH))
+distancet <- as.dist(cor_t)
+hclust_complete <- hclust(distancet, method = "complete")
+dendcomplete <- as.dendrogram(hclust_complete)
+aheatmap(InflammasomeH, Colv=NA, Rowv=NA, color = "-RdBu:100", scale="row", treeheight=c(0, 50), fontsize=12, cexCol=1, filename="Inflammasome.png", width=8, height=16)
+
+
+WTvKOcytoskel

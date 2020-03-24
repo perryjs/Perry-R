@@ -1,0 +1,53 @@
+neg = subset(data, State==-1)
+none = subset(data, State==0)
+pos = subset(data, State==1)
+with(neg, symbols(ID, logpval, circles = CircleSize, inches = 1/8, col="blue", bg=tBlue))
+with(none, symbols(ID, logpval, circles = CircleSize, inches = 1/8, col="black", bg=tBlack, add=TRUE))
+with(pos, symbols(ID, logpval, circles = CircleSize, inches = 1/8, col="red", bg=tRed, add=TRUE))
+
+attach(data)
+plot(ID, logpval, xlab="SLC ID", ylab="Log Fold Change", pch="o")
+symbols(ID, logpval, circles=CircleSize, inches=1/10, col=ifelse(State==1,"red","black")) 
+symbols(ID, logpval, circles=CircleSize, inches=1/10, bg=ifelse(State==1, tRed, tBlack))
+
+
+plot(ID, Log2FC, xlab="SLC ID", ylab="Log2FC", pch=18, col="blue")
+
+attach(data)
+plot(ID, Log2FC, xlab="SLC ID", ylab="Log2FC", pch=".")
+neg = subset(data, State==0)
+pos = subset(data, State==1)
+with(neg, text(ID, Log2FC, row.names(data), cex=0.8, family="A", col="blue"))
+with(pos, text(ID, Log2FC, row.names(data), cex=0.8, family="A", col="red"))
+
+png(filename="Fig 2a.png")
+
+dev.off()
+
+#Fonts
+windowsFonts(
+  A=windowsFont("Arial Black"),
+  B=windowsFont("Bookman Old Style"),
+  C=windowsFont("Comic Sans MS"),
+  D=windowsFont("Symbol")
+)
+
+cBlue <- c("blue")
+tBlue <- adjustcolor(cBlue, alpha.f = 0.3) 
+
+cRed <- c("red")
+tRed <- adjustcolor(cRed, alpha.f = 0.3) 
+
+cBlack <- c("black")
+tBlack <- adjustcolor(cBlack, alpha.f = 0.3) 
+
+femalealc = subset(ds, female==1 & substance=="alcohol")
+malealc = subset(ds, female==0 & substance=="alcohol")
+with(malealc, symbols(age, cesd, circles=i1,
+inches=1/5, bg="blue"))
+with(femalealc, symbols(age, cesd, circles=i1,
+inches=1/5, bg="pink", add=TRUE))
+
+attach(ds)
+symbols(age, cesd, circles=i1,inches=1/5, 
+             bg=ifelse(female==1,"pink","blue")) 

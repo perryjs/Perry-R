@@ -1,0 +1,35 @@
+Volcano Plot
+res <- read.table("results.txt", header=TRUE)
+head(res)
+
+# Make a basic volcano plot
+with(res, plot(log2FoldChange, -log10(pvalue), pch=20, main="Volcano plot", xlim=c(-2.5,2)))
+
+# Add colored points: red if padj<0.05, orange of log2FC>1, green if both)
+with(subset(res, padj<.05 ), points(log2FoldChange, -log10(pvalue), pch=20, col="green"))
+with(subset(res, abs(log2FoldChange)>.5), points(log2FoldChange, log10(pvalue), pch=20, col="orange"))
+with(subset(res, padj<.05 & abs(log2FoldChange)>1), points(log2FoldChange, -log10(pvalue), pch=20, col="green"))
+
+#split the y axis if necessary
+library(plotrix)
+par(bty="res") # deleting the box
+gap.plot(x,y, gap=c(2,7.5), gap.axis="x", pch=16,
+         col="blue", ylim=range(c(y,z)),
+         xtics=c(0:3,8:10), xticlab=c(0:3,8:10))
+
+gap.plot(x,z, gap=c(2,7.5), gap.axis="x", pch=17,
+         col="red", ylim=range(c(y,z)), add=TRUE); axis(2)
+
+abline(v=seq(1.99,2.09,.001), col="white")  # hiding vertical lines
+axis.break(1,2,style="slash")               # plotting slashes for breakpoints
+
+# Label points with the textxy function from the calibrate plot
+library(calibrate)
+with(subset(res, padj<.05 & abs(log2FoldChange)>1), textxy(log2FoldChange, -log10(pvalue), labs=Gene, cex=.8))
+
+###simplified
+png("WT v KO volcano.png", 1000, 1000, pointsize=20) 
+with(res, plot(log2FoldChange, -log10(pvalue), pch=20, main="Volcano plot", xlim=c(-2,2)))
+with(subset(res, padj<.05 ), points(log2FoldChange, -log10(pvalue), pch=20, col="darkgreen"))
+with(subset(res, padj<.05 & abs(log2FoldChange)>.5), points(log2FoldChange, -log10(pvalue), pch=20, col="blue"))
+dev.off()
