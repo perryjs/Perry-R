@@ -1,0 +1,21 @@
+Corpse Independent
+dat <- read.delim("Gene function Independent.txt", row.names=1)
+tiff(filename = "Corpse Independent Tree 20April2018.tiff", compression = "lzw");
+plot <- barplot(dat$Up, xlim = c(-20, 20), horiz = TRUE, col = "#ff0000")
+plot <- barplot(dat$Down, horiz = TRUE, add = TRUE, col = "#ffd2d3")
+plot <- abline(v=0)
+plot <- abline(v=-20)
+dev.off();
+
+Corpse Dependent
+dat2 <- read.delim("Gene function counts.txt", row.names=1)
+tiff(filename = "Corpse Dependent Tree 20April2018.tiff", compression = "lzw");
+plot <- barplot(dat2$Up, xlim = c(-60, 40), horiz = TRUE, col = "#0000c0")
+plot <- barplot(dat2$Down, horiz = TRUE, add = TRUE, col = "#aeaeff")
+plot <- abline(v=0)
+dev.off();
+
+#0073e6 = blue
+#009900 = green
+#ff4800 = orange
+#cc0000 = red

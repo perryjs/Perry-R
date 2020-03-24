@@ -1,0 +1,333 @@
+library(DESeq2)
+library(Tmisc)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(NMF)
+library("AnnotationDbi")
+library("org.Mm.eg.db")
+
+## Import count data from featurecounts
+countdata <- read.table("counts_mouse_062017.txt", header=TRUE, row.names=1, sep="\t")
+#Separate out position data for later inclusion
+posdata <- dplyr::select(countdata,Chr,Start,End,Strand,Length)
+posdata$gene <- rownames(posdata)
+## Remove first five columns (Chr,Start,End,Strand,Length)
+countdata <- countdata[ ,6:ncol(countdata)]
+## Remove cruft from filenames
+colnames(countdata) <- colnames(countdata) %>% str_replace(".star.Aligned.sortedByCoord.out.bam", "")
+nn(countdata)
+
+#Read in sample data
+coldata <- read.table("coldata.txt", header=T, sep="\t",row.names=1)
+coldata
+
+## Convert to matrix
+countdata <- as.matrix(countdata)
+
+## Instantiate the DESeqDataSet
+dds <- DESeqDataSetFromMatrix(countData=countdata, colData=coldata, design=~genotype)
+dds
+
+## Run the DESeq pipeline and store normalized counts
+dds <- DESeq(dds)
+normcount.out <- as.data.frame(counts(dds, normalized=TRUE))
+normcount.out$gene <-rownames(normcount.out)
+
+## Put into results table
+res <- results(dds)
+
+## Pull down gene symbol for ENSEMBL identifier
+res$gene <- mapIds(org.Mm.eg.db,
+                     keys=row.names(res),
+                     column="gene",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+####For RefSeq or other gene name pulldowns
+res <- read.delim("GSE102160_exp_full_time_course.csv", header=T, sep=",", row.names=1)
+res$geneID <- mapIds(org.Mm.eg.db,
+		     keys=row.names(res),
+                     column="SYMBOL",
+                     keytype="REFSEQ",
+                     multiVals="first")
+
+res_table <- merge(as.data.frame(res), as.data.frame(counts(dds,normalized=TRUE)), by='row.names',sort=FALSE)
+
+## Plot dispersions
+png("pMac-qc-dispersions.png", 1000, 1000, pointsize=20)
+plotDispEsts(res, main="Dispersion plot")
+dev.off()
+
+## Regularized log transformation for clustering/heatmaps, etc
+rld <- rlogTransformation(dds)
+
+##Pretty PCA
+rld_pca <- function (rld, intgroup = "condition", ntop = 500, colors=NULL, legendpos="bottomleft", main="PCA Biplot", textcx=1, ...) {
+  require(genefilter)
+  require(calibrate)
+  require(RColorBrewer)
+
+{
+rv <- matrixStats::rowVars(assay(x))
+select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+pca <- prcomp(t(assay(x)[select, ]))
+percentVar <- pca$sdev^2/sum(pca$sdev^2)
+if (!all(intgroup %in% names(colData(x)))) {
+stop("the argument 'intgroup' should specify columns of colData(dds)")
+}
+intgroup.df <- as.data.frame(colData(x)[, intgroup, drop = FALSE])
+group <- factor(apply(intgroup.df, 1, paste, collapse = " : "))
+d <- data.frame(PC1 = pca$x[, 1], PC2 = pca$x[, 2], group = group,
+intgroup.df, names = colnames(x))
+if (returnData) {
+attr(d, "percentVar") <- percentVar[1:2]
+return(d)
+}
+p <- ggplot(data = d, aes_string(x = "PC1", y = "PC2", color = "group", label="names")) +
+geom_point(size = 3) +
+xlab(paste0("PC1: ", round(percentVar[1] * 100, digits=2), "% variance")) +
+ylab(paste0("PC2: ", round(percentVar[2] * 100, digits=2), "% variance"))
+if (labelpoints) {
+#p <- p+geom_text(hjust=0, vjust=0)
+p <- p+geom_text_repel()
+}
+p
+}
+
+## Custom viz functions for ma plot and volcano plot
+### if the p-value vector for the volcano plot has zeros, make the zero values equal to the smallest nonzero value in the vector.
+lowestnonzero <- function(x) {
+#x <- na.omit(x)
+if(any(na.omit(x)<0) | any(na.omit(x)>1)) stop("lowestnonzero should only accept p-values")
+xo <- x[order(x)]
+lnz <- xo[xo>0][1]
+x[x==0] <- lnz
+x
+}
+
+### MA-plot
+maplot <- function (res, thresh=0.05, labelsig=TRUE, textcx=1, ...) {
+res <- as.data.frame(subset(res, baseMean>0))
+res$Gene <- row.names(res)
+with(res, plot(baseMean, log2FoldChange, pch=20, cex=.5, log="x", ...))
+sig <- subset(res, padj<thresh)
+with(sig, points(baseMean, log2FoldChange, col="red", pch=20, cex=1.5))
+if (labelsig) {
+require(calibrate)
+with(sig, textxy(baseMean, log2FoldChange, labs=Gene, cex=textcx, col=2))
+}
+}
+
+### Volcano plot
+volcanoplot <- function (res, lfcthresh=2, sigthresh=0.05, main="Volcano Plot", legendpos="bottomright", labelsig=TRUE, textcx=1, ...) {
+res <- as.data.frame(res)
+res$Gene <- row.names(res)
+res$pvalue <- lowestnonzero(res$pvalue)
+with(res, plot(log2FoldChange, -log10(pvalue), pch=20, main=main, ...))
+with(subset(res, padj<sigthresh ), points(log2FoldChange, -log10(pvalue), pch=20, col="red", ...))
+with(subset(res, abs(log2FoldChange)>lfcthresh), points(log2FoldChange, -log10(pvalue), pch=20, col="orange", ...))
+with(subset(res, padj<sigthresh & abs(log2FoldChange)>lfcthresh), points(log2FoldChange, -log10(pvalue), pch=20, col="green", ...))
+if (labelsig) {
+require(calibrate)
+with(subset(res, padj<sigthresh & abs(log2FoldChange)>lfcthresh), textxy(log2FoldChange, -log10(pvalue), labs=Gene, cex=textcx, ...))
+}
+legend(legendpos, xjust=1, yjust=1, legend=c(paste("FDR<",sigthresh,sep=""), paste("|LogFC|>",lfcthresh,sep=""), "both"), pch=20, col=c("red"
+}
+
+## PCA
+ggpca(rld, intgroup = c("condition"), labelpoints=TRUE) + xlim(-8, 8) + ylim(-4,4)
+ggsave("pMac-qc-pca.png", w=10, h=10, scale=.9)
+#o()
+
+#Sample Distance Matrix
+annCol <- colData(dds) %>% as.data.frame %>% tbl_df
+annCol <- as.data.frame(subset(colData(dds), select=c(genotype,stimulation)))
+sampleDists <- as.matrix(dist(t(assay(rld))))
+NMF::aheatmap(as.matrix(sampleDists),
+col=colorRampPalette(c("black", "white"))(100),
+annCol=annCol, main="Sample Distance Matrix",
+fontsize=14, cexRow=.8, , cexCol=.8, filename = "pMac-qc-heatmap-samples.png")
+#o()
+
+
+### Running multiple comparisons, eg multiple experimental conditions
+# 1) BELMO vs. GFP in apoptotic only
+# 2) BELMO vs. GFP in non-apoptotic only
+# 3) Apoptotic vs. Not in BELMO only
+# 4) Apoptotic vs. Not in GFP only
+
+coldata$sample <- rownames(coldata)
+
+#Split the coldata table for each analysis
+coldata.1 <- dplyr::filter(coldata, stimulation=="neutrophil")
+rownames(coldata.1) <- coldata.1$sample
+coldata.2 <- dplyr::filter(coldata, stimulation=="macrophage")
+rownames(coldata.2) <- coldata.2$sample
+coldata.3 <- dplyr::filter(coldata, genotype=="WT")
+rownames(coldata.3) <- coldata.3$sample
+coldata.4 <- dplyr::filter(coldata, genotype=="KO")
+rownames(coldata.4) <- coldata.4$sample
+
+
+
+coldata.1 <- dplyr::filter(coldata, genotype=="WT v KO")
+rownames(coldata.1) <- coldata.1$sample
+
+#Now select columns from the countdata to match
+countdata <- as.data.frame(countdata)
+all.genes <- rownames(countdata)
+countdata.1 <- dplyr::select(countdata, one_of(coldata.1$sample))
+countdata.1 <- as.matrix(countdata.1)
+countdata.2 <- dplyr::select(countdata, one_of(coldata.2$sample))
+countdata.2 <- as.matrix(countdata.2)
+countdata.3 <- dplyr::select(countdata, one_of(coldata.3$sample))
+countdata.3 <- as.matrix(countdata.3)
+countdata.4 <- dplyr::select(countdata, one_of(coldata.4$sample))
+countdata.4 <- as.matrix(countdata.4)
+
+
+
+#Relevel factors in coldata
+coldata.1$genotype <- relevel(coldata.1$genotype,ref="WT")
+coldata.2$genotype <- relevel(coldata.2$genotype,ref="WT")
+coldata.3$stimulation <- relevel(coldata.3$stimulation,ref="neutrophil")
+coldata.4$stimulation <- relevel(coldata.4$stimulation,ref="neutrophil")
+
+
+#Instantiate four separate DEseq objects (one for each contrast).
+dds.1 <- DESeqDataSetFromMatrix(countData=countdata.1, colData=coldata.1, design=~genotype)
+dds.2 <- DESeqDataSetFromMatrix(countData=countdata.2, colData=coldata.2, design=~genotype)
+dds.3 <- DESeqDataSetFromMatrix(countData=countdata.3, colData=coldata.3, design=~stimulation)
+dds.4 <- DESeqDataSetFromMatrix(countData=countdata.4, colData=coldata.4, design=~stimulation)
+
+
+## Run the DESeq pipeline and store normalized counts
+dds.1 <- DESeq(dds.1)
+dds.2 <- DESeq(dds.2)
+dds.3 <- DESeq(dds.3)
+dds.4 <- DESeq(dds.4)
+
+normcount.out.1 <- as.data.frame(counts(dds.1, normalized=TRUE))
+normcount.out.1$gene <-rownames(normcount.out.1)
+normcount.out.2 <- as.data.frame(counts(dds.2, normalized=TRUE))
+normcount.out.2$gene <-rownames(normcount.out.2)
+normcount.out.3 <- as.data.frame(counts(dds.3, normalized=TRUE))
+normcount.out.3$gene <-rownames(normcount.out.3)
+normcount.out.4 <- as.data.frame(counts(dds.4, normalized=TRUE))
+normcount.out.4$gene <-rownames(normcount.out.4)
+
+#Results tables
+res.1 <- results(dds.1, contrast=c("genotype", "WT", "KO"))
+restbl.1 <- deseqresult2tbl(res.1)
+res.2 <- results(dds.2, contrast=c("genotype", "WT", "KO"))
+restbl.2 <- deseqresult2tbl(res.2)
+res.3 <- results(dds.3, contrast=c("stimulation", "neutrophil", "macrophage"))
+restbl.3 <- deseqresult2tbl(res.3)
+res.4 <- results(dds.4, contrast=c("stimulation", "neutrophil", "macrophage"))
+restbl.4 <- deseqresult2tbl(res.4)
+
+## Pull down gene symbol for ENSEMBL identifier
+res.1$symbol <- mapIds(org.Mm.eg.db,
+                     keys=row.names(res.1),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+res.2$symbol <- mapIds(org.Mm.eg.db,
+                     keys=row.names(res.2),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+res.3$symbol <- mapIds(org.Mm.eg.db,
+                     keys=row.names(res.3),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+res.4$symbol <- mapIds(org.Mm.eg.db,
+                     keys=row.names(res.4),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+## Join results to normalized counts
+res.1_table <- merge(as.data.frame(res.1), as.data.frame(counts(dds.1,normalized=TRUE)), by='row.names',sort=FALSE)
+res.2_table <- merge(as.data.frame(res.2), as.data.frame(counts(dds.2,normalized=TRUE)), by='row.names',sort=FALSE)
+res.3_table <- merge(as.data.frame(res.3), as.data.frame(counts(dds.3,normalized=TRUE)), by='row.names',sort=FALSE)
+res.4_table <- merge(as.data.frame(res.4), as.data.frame(counts(dds.4,normalized=TRUE)), by='row.names',sort=FALSE)
+
+## Write results to .CSV file
+write.table(res.1_table, file="Neutrophil WT v KO.csv", row=F, sep=",")
+write.table(res.2_table, file="Macrophage WT v KO.csv", row=F, sep=",")
+write.table(res.3_table, file="WT Neutrophil v Macrophage.csv", row=F, sep=",")
+write.table(res.4_table, file="KO Neutrophil v Macrophage.csv", row=F, sep=",")
+
+## Run MA & Volcano Plots
+png("Neutrophil wt v ko mavolcano.png", w=800, h=1800, pointsize=17)
+par(mfrow=c(2,1))
+maplot(res.1, main="MA-Plot")
+volcanoplot(res.1, lfcthresh = 1)
+dev.off()
+
+png("Macrophage wt v ko mavolcano.png", w=800, h=1800, pointsize=17)
+par(mfrow=c(2,1))
+maplot(res.2, main="MA-Plot")
+volcanoplot(res.2, lfcthresh = 1)
+dev.off()
+
+png("WT Neutro v Mac mavolcano.png", w=800, h=1800, pointsize=17)
+par(mfrow=c(2,1))
+maplot(res.3, main="MA-Plot")
+volcanoplot(res.3, lfcthresh = 1)
+dev.off()
+
+png("KO Neutro v Mac mavolcano.png", w=800, h=1800, pointsize=17)
+par(mfrow=c(2,1))
+maplot(res.4, main="MA-Plot")
+volcanoplot(res.4, lfcthresh = 1)
+dev.off()
+
+###PCA
+rld <- rlogTransformation(dds.4)
+
+rld_pca <- function (rld, intgroup = "genotype", ntop = 500, colors=NULL, legendpos="bottomleft", main="PCA Biplot", textcx=1, ...) {
+  require(genefilter)
+  require(calibrate)
+  require(RColorBrewer)
+  rv = rowVars(assay(rld))
+  select = order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+  pca = prcomp(t(assay(rld)[select, ]))
+  fac = factor(apply(as.data.frame(colData(rld)[, intgroup, drop = FALSE]), 1, paste, collapse = " : "))
+  if (is.null(colors)) {
+    if (nlevels(fac) >= 3) {
+      colors = brewer.pal(nlevels(fac), "Paired")
+    }   else {
+      colors = c("black", "red")
+    }
+  }
+  pc1var <- round(summary(pca)$importance[2,1]*100, digits=1)
+  pc2var <- round(summary(pca)$importance[2,2]*100, digits=1)
+  pc1lab <- paste0("PC1 (",as.character(pc1var),"%)")
+  pc2lab <- paste0("PC1 (",as.character(pc2var),"%)")
+  plot(PC2~PC1, data=as.data.frame(pca$x), bg=colors[fac], pch=21, xlab=pc1lab, ylab=pc2lab, main=main, ...)
+  with(as.data.frame(pca$x), textxy(PC1, PC2, labs=rownames(as.data.frame(pca$x)), cex=textcx))
+  legend(legendpos, legend=levels(fac), col=colors, pch=20)
+  #     rldyplot(PC2 ~ PC1, groups = fac, data = as.data.frame(pca$rld),
+  #            pch = 16, cerld = 2, aspect = "iso", col = colours, main = draw.key(key = list(rect = list(col = colours),
+  #                                                                                         terldt = list(levels(fac)), rep = FALSE)))
+}
+png("KO Neutro v Mac-pca.png", 1000, 1000, pointsize=20)
+rld_pca(rld, intgroup="genotype", xlim=c(-75, 35))
+dev.off()
+
+
+
+Time Series
+-------
+
+ddsTC <- DESeqDataSetFromMatrix(countData=countdata, colData=coldata, ~ genotype + stimulation + timepoint + genotype:stimulation + genotype:timepoint + stimulation:timepoint + genotype:stimulation:timepoint)
+ddsTC <- DESeq(ddsTC)
+resTC <- results(ddsTC)
+resTC_table <- merge(as.data.frame(resTC), as.data.frame(counts(ddsTC,normalized=TRUE)), by='row.names',sort=FALSE)
+write.table(resTC_table, file="resTC.csv", row=F, sep=",")
+
+res.try <- results(dds, contrast=list(c("condition.stimulation","tissueB.genotypeMUTANT.conditionTREATMENT")))
